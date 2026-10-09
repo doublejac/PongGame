@@ -1,1 +1,1 @@
-![Gameplay Screenshot](migration.png)
+![migration](migration.png)
