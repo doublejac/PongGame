@@ -9,6 +9,12 @@ function love.load()
     love.window.setTitle("Pong Game")
     love.window.setMode(WINDOW_WIDTH, WINDOW_HEIGHT, { vsync = true })
 
+    -- 오디오 소스 로드 ("static"은 메모리에 상주시켜 지연 없이 재생)
+    sounds = {
+        hit = love.audio.newSource('hit.wav', 'static'),
+        miss = love.audio.newSource('miss.wav', 'static')
+    }
+    
     -- 기본 폰트 설정
     fontLarge = love.graphics.newFont(32)
     fontNormal = love.graphics.newFont(16)
@@ -143,6 +149,10 @@ function love.update(dt)
         -- 패들 범위를 살짝 넘겨 닿은 경우를 대비해 -1 ~ 1 범위로 제한
         hitFactor = math.max(-1, math.min(1, hitFactor))
 
+        -- 타격음 재생
+        sounds.hit:stop()
+        sounds.hit:play()
+
         -- hitFactor에 따라 dy 재계산
         ball.dy = hitFactor * maxDy
     end
@@ -161,15 +171,25 @@ function love.update(dt)
 
         hitFactor = math.max(-1, math.min(1, hitFactor))
 
+        -- 타격음 재생
+        sounds.hit:stop()
+        sounds.hit:play()
+
         -- hitFactor에 따라 dy 재계산
         ball.dy = hitFactor * maxDy
     end
 
     -- 5. 득점 판정 및 승리 조건 체크
     if ball.x < 0 then
+        sounds.miss:stop()
+        sounds.miss:play()
+        
         score2 = score2 + 1
         checkWinner()
     elseif ball.x > WINDOW_WIDTH then
+        sounds.miss:stop()
+        sounds.miss:play()
+        
         score1 = score1 + 1
         checkWinner()
     end
