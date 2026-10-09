@@ -9,12 +9,36 @@ function love.load()
     love.window.setTitle("Pong Game")
     love.window.setMode(WINDOW_WIDTH, WINDOW_HEIGHT, { vsync = true })
 
+    -- 감성적인 네온/다크 테마 팔레트 (RGB 0~1 정규화)
+    colors = {
+        background = { 0.08, 0.09, 0.13 },  -- 깊은 미드나이트 네이비
+        centerLine = { 0.25, 0.30, 0.42, 0.4 }, -- 은은한 그리드 라인 (알파값 0.4)
+        paddle1    = { 0.20, 0.78, 0.95 },  -- P1(플레이어): 청량한 시안/하늘색
+        paddle2    = { 1.00, 0.32, 0.46 },  -- P2(AI): 세련된 네온 코랄 핑크
+        ball       = { 1.00, 0.88, 0.35 },  -- 공: 밝은 레몬 옐로우
+        textWhite  = { 0.95, 0.96, 0.98 },  -- 기본 메인 텍스트
+        textSub    = { 0.55, 0.60, 0.70 }   -- 보조 안내 텍스트
+    }
+
     -- 오디오 소스 로드 ("static"은 메모리에 상주시켜 지연 없이 재생)
     sounds = {
         hit = love.audio.newSource('hit.wav', 'static'),
-        miss = love.audio.newSource('miss.wav', 'static')
+        miss = love.audio.newSource('miss.wav', 'static'),
+        win = love.audio.newSource('win.wav', 'static'),   -- 승리 팡파르/효과음
+        lose = love.audio.newSource('lose.wav', 'static')  -- 패배 효과음
     }
-    
+
+    -- 배경음악 로드 ("stream" 모드는 디스크에서 실시간 스트리밍)
+    music = love.audio.newSource('bgm.mp3', 'stream')
+    music:setLooping(true)   -- 무한 반복 재생
+    music:setVolume(0.5)     -- BGM 기본 볼륨 (0.0 ~ 1.0)
+    music:play()             -- 게임 시작 시 자동 재생
+
+    -- 마스터 볼륨 및 음소거 토글 상태
+    isMuted = false
+    masterVolume = 1.0
+    love.audio.setVolume(masterVolume)
+
     -- 기본 폰트 설정
     fontLarge = love.graphics.newFont(32)
     fontNormal = love.graphics.newFont(16)
@@ -41,6 +65,11 @@ function love.load()
     aiMaxOffset = 25
     aiTargetOffset = 0
     
+    -- 승패 사운드 지연 관련 변수
+    gameOverDelay = 0.4        -- BGM 정지 후 사운드 재생까지의 대기 시간(초)
+    gameOverTimer = 0          -- 딜레이 카운팅 타이머
+    hasPlayedEndSound = false  -- 사운드가 1회만 재생되도록 막는 플래그
+
     -- 공 초기화 함수 호출
     resetBall()
 end
@@ -62,8 +91,26 @@ function resetBall()
 end
 
 function love.update(dt)
-    -- 1. 타이틀 화면 또는 게임오버 화면에서는 물리/이동 연산을 중지
-    if gameState ~= 'play' then
+    -- 승패 결정('done') 상태일 때 사운드 딜레이 처리
+    if gameState == 'done' then
+        if not hasPlayedEndSound then
+            gameOverTimer = gameOverTimer + dt
+            if gameOverTimer >= gameOverDelay then
+                hasPlayedEndSound = true
+                if winningPlayer == 1 then
+                    sounds.win:stop()
+                    sounds.win:play()
+                elseif winningPlayer == 2 then
+                    sounds.lose:stop()
+                    sounds.lose:play()
+                end
+            end
+        end
+        return -- 공과 패들 이동 연산은 건너뜀
+    end
+
+    -- 타이틀 화면('start')일 때도 물리 연산 중단
+    if gameState == 'start' then
         return
     end
 
@@ -199,9 +246,17 @@ function checkWinner()
     if score1 >= WINNING_SCORE then
         winningPlayer = 1
         gameState = 'done'
+        music:pause()               -- BGM 일시정지
+        gameOverTimer = 0           -- 타이머 초기화
+        hasPlayedEndSound = false   -- 재생 플래그 초기화
+
     elseif score2 >= WINNING_SCORE then
         winningPlayer = 2
         gameState = 'done'
+        music:pause()               -- BGM 일시정지
+        gameOverTimer = 0           -- 타이머 초기화
+        hasPlayedEndSound = false   -- 재생 플래그 초기화
+
     else
         resetBall()
     end
@@ -226,6 +281,16 @@ function love.keypressed(key)
         love.event.quit()
     end
 
+    -- 'm' 키로 전체 사운드 음소거/해제 토글
+    if key == 'm' then
+        isMuted = not isMuted
+        if isMuted then
+            love.audio.setVolume(0)
+        else
+            love.audio.setVolume(masterVolume)
+        end
+    end
+
     -- 상태 전이 키 입력 처리
     if gameState == 'start' then
         if key == 'space' or key == 'return' then
@@ -233,7 +298,16 @@ function love.keypressed(key)
         end
     elseif gameState == 'done' then
         if key == 'space' or key == 'return' then
-            -- 점수 및 공 리셋 후 다시 게임 시작
+            sounds.win:stop()
+            sounds.lose:stop()
+
+            -- 타이머 및 플래그 초기화
+            gameOverTimer = 0
+            hasPlayedEndSound = false
+
+            -- BGM 재개 (처음부터 재생하려면 music:seek(0) 추가)
+            music:play()
+
             score1 = 0
             score2 = 0
             winningPlayer = 0
@@ -244,36 +318,71 @@ function love.keypressed(key)
 end
 
 function love.draw()
-    -- 점수판 표시 (모든 상태 공통)
-    love.graphics.setFont(fontLarge)
-    love.graphics.printf(score1, 0, 50, WINDOW_WIDTH / 2, "center")
-    love.graphics.printf(score2, WINDOW_WIDTH / 2, 50, WINDOW_WIDTH / 2, "center")
+    -- 1. 배경 색상 채우기
+    love.graphics.clear(colors.background)
 
-    -- 패들과 공 렌더링
-    love.graphics.rectangle('fill', paddle1.x, paddle1.y, paddle1.width, paddle1.height)
-    love.graphics.rectangle('fill', paddle2.x, paddle2.y, paddle2.width, paddle2.height)
-    love.graphics.rectangle('fill', ball.x, ball.y, ball.width, ball.height)
-
-    -- 중앙 점선 그리기
-    love.graphics.setColor(1, 1, 1, 0.2)
+    -- 2. 중앙 점선 (부드러운 구분선)
+    love.graphics.setColor(colors.centerLine)
     for y = 0, WINDOW_HEIGHT, 30 do
-        love.graphics.rectangle('fill', WINDOW_WIDTH / 2 - 1, y, 2, 15)
+        love.graphics.rectangle('fill', WINDOW_WIDTH / 2 - 1, y, 2, 16, 2, 2) -- 모서리 둥글게
     end
-    love.graphics.setColor(1, 1, 1, 1)
 
-    -- 상태별 UI 오버레이
+    -- 3. 점수판 표시 (각 진영 색상에 맞춰 렌더링)
+    love.graphics.setFont(fontLarge)
+    love.graphics.setColor(colors.paddle1)
+    love.graphics.printf(score1, 0, 40, WINDOW_WIDTH / 2, "center")
+
+    love.graphics.setColor(colors.paddle2)
+    love.graphics.printf(score2, WINDOW_WIDTH / 2, 40, WINDOW_WIDTH / 2, "center")
+
+    -- 4. 패들 렌더링 (살짝 둥근 모서리 적용: rx=3, ry=3)
+    love.graphics.setColor(colors.paddle1)
+    love.graphics.rectangle('fill', paddle1.x, paddle1.y, paddle1.width, paddle1.height, 4, 4)
+
+    love.graphics.setColor(colors.paddle2)
+    love.graphics.rectangle('fill', paddle2.x, paddle2.y, paddle2.width, paddle2.height, 4, 4)
+
+    -- 5. 공 렌더링 (둥근 사각형 또는 원형)
+    love.graphics.setColor(colors.ball)
+    love.graphics.rectangle('fill', ball.x, ball.y, ball.width, ball.height, 3, 3)
+
+    -- 6. 상태별 UI 오버레이
     if gameState == 'start' then
         love.graphics.setFont(fontLarge)
-        love.graphics.printf("PONG GAME", 0, WINDOW_HEIGHT / 2 - 60, WINDOW_WIDTH, "center")
+        love.graphics.setColor(colors.ball)
+        love.graphics.printf("PONG GAME", 0, WINDOW_HEIGHT / 2 - 70, WINDOW_WIDTH, "center")
+
         love.graphics.setFont(fontNormal)
-        love.graphics.printf("Press SPACE to Start", 0, WINDOW_HEIGHT / 2, WINDOW_WIDTH, "center")
-        love.graphics.printf("Controls: W / S or UP / DOWN", 0, WINDOW_HEIGHT / 2 + 30, WINDOW_WIDTH, "center")
+        love.graphics.setColor(colors.textWhite)
+        love.graphics.printf("Press SPACE to Start", 0, WINDOW_HEIGHT / 2 - 10, WINDOW_WIDTH, "center")
+        
+        love.graphics.setColor(colors.textSub)
+        love.graphics.printf("Controls: W / S or UP / DOWN", 0, WINDOW_HEIGHT / 2 + 25, WINDOW_WIDTH, "center")
 
     elseif gameState == 'done' then
         love.graphics.setFont(fontLarge)
-        local winnerText = (winningPlayer == 1) and "Player 1 Wins!" or "AI Wins!"
-        love.graphics.printf(winnerText, 0, WINDOW_HEIGHT / 2 - 50, WINDOW_WIDTH, "center")
+        if winningPlayer == 1 then
+            love.graphics.setColor(colors.paddle1)
+            love.graphics.printf("Player 1 Wins!", 0, WINDOW_HEIGHT / 2 - 50, WINDOW_WIDTH, "center")
+        else
+            love.graphics.setColor(colors.paddle2)
+            love.graphics.printf("AI Wins!", 0, WINDOW_HEIGHT / 2 - 50, WINDOW_WIDTH, "center")
+        end
+
         love.graphics.setFont(fontNormal)
-        love.graphics.printf("Press SPACE to Restart", 0, WINDOW_HEIGHT / 2 + 10, WINDOW_WIDTH, "center")
+        love.graphics.setColor(colors.textWhite)
+        love.graphics.printf("Press SPACE to Restart", 0, WINDOW_HEIGHT / 2 + 15, WINDOW_WIDTH, "center")
     end
+
+    -- 7. 우측 상단 음소거 상태
+    love.graphics.setFont(fontNormal)
+    love.graphics.setColor(colors.textSub)
+    if isMuted then
+        love.graphics.printf("[Muted] Press M", 0, 15, WINDOW_WIDTH - 20, "right")
+    else
+        love.graphics.printf("[Sound ON] Press M", 0, 15, WINDOW_WIDTH - 20, "right")
+    end
+
+    -- 다음 그리기를 위해 기본 흰색(불투명)으로 리셋
+    love.graphics.setColor(1, 1, 1, 1)
 end
