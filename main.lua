@@ -41,7 +41,22 @@ function love.load()
     hasPlayedEndSound = false
 
     -- 패들 객체
-    paddle1 = { x = 30, y = 250, width = 15, height = 80, speed = 400 }
+    -- 플레이어 1 패들 객체에 대시 파라미터 추가
+    paddle1 = {
+        x = 30,
+        y = 250,
+        width = 15,
+        height = 80,
+        speed = 400,
+
+        -- 대시 관련 속성
+        isDashing = false,      -- 현재 대시 중인지 여부
+        dashSpeedMultiplier = 5.0, -- 대시 시 속도 배율 (400 * 5.0 = 2000)
+        dashDuration = 0.1,    -- 1회 대시 유지 시간(초)
+        dashTimer = 0,          -- 대시 유지 타이머
+        dashCooldown = 1.8,     -- 대시 재사용 대기시간(초)
+        cooldownTimer = 0       -- 쿨타임 카운터 (0이면 사용 가능)
+    }
     paddle2 = { x = WINDOW_WIDTH - 45, y = 250, width = 15, height = 80, speed = 350 }
 
     -- AI 설정 변수
@@ -71,6 +86,8 @@ function resetBall()
     aiTimer = 0
     aiCanReact = false
     aiTargetOffset = 0
+    paddle1.cooldownTimer = 0
+    paddle1.isDashing = false
 end
 
 function checkWinner()
@@ -119,11 +136,48 @@ function love.update(dt)
         return
     end
 
-    -- 1. 플레이어 입력 (W/S 또는 방향키)
-    if love.keyboard.isDown('w') or love.keyboard.isDown('up') then
-        paddle1.y = math.max(0, paddle1.y - paddle1.speed * dt)
-    elseif love.keyboard.isDown('s') or love.keyboard.isDown('down') then
-        paddle1.y = math.min(WINDOW_HEIGHT - paddle1.height, paddle1.y + paddle1.speed * dt)
+    -- ==========================================
+    -- 1. 플레이어 패들(paddle1) 대시 및 조작 로직
+    -- ==========================================
+    -- 쿨타임 회복 처리
+    if paddle1.cooldownTimer > 0 then
+        paddle1.cooldownTimer = math.max(0, paddle1.cooldownTimer - dt)
+    end
+
+    -- 대시 진행 중 타이머 처리
+    if paddle1.isDashing then
+        paddle1.dashTimer = paddle1.dashTimer - dt
+        if paddle1.dashTimer <= 0 then
+            paddle1.isDashing = false
+        end
+    end
+
+    -- 방향 입력 감지
+    local moveUp = love.keyboard.isDown('w') or love.keyboard.isDown('up')
+    local moveDown = love.keyboard.isDown('s') or love.keyboard.isDown('down')
+    local shiftPressed = love.keyboard.isDown('lshift') or love.keyboard.isDown('rshift')
+
+    -- 대시 발동 조건: 이동 키 + Shift + 쿨타임 완료
+    if shiftPressed and (moveUp or moveDown) and paddle1.cooldownTimer <= 0 and not paddle1.isDashing then
+        paddle1.isDashing = true
+        paddle1.dashTimer = paddle1.dashDuration
+        paddle1.cooldownTimer = paddle1.dashCooldown
+        
+        -- 대시 사운드가 있다면 재생 (기존 Audio 모듈 활용 시)
+        -- Audio.play('hit', { pitch = 1.6 })
+    end
+
+    -- 현재 적용할 이동 속도 계산
+    local currentSpeed = paddle1.speed
+    if paddle1.isDashing then
+        currentSpeed = paddle1.speed * paddle1.dashSpeedMultiplier
+    end
+
+    -- 패들 위치 이동 및 화면 경계 제한
+    if moveUp then
+        paddle1.y = math.max(0, paddle1.y - currentSpeed * dt)
+    elseif moveDown then
+        paddle1.y = math.min(WINDOW_HEIGHT - paddle1.height, paddle1.y + currentSpeed * dt)
     end
 
     -- 2. AI 패들 지연 반응 및 타점 오차 추적
@@ -301,5 +355,42 @@ function love.draw()
         love.graphics.printf("[BGM ON] Press M", 0, 15, WINDOW_WIDTH - 20, "right")
     end
 
+    -- ==========================================
+    -- 플레이어 대시 쿨타임 게이지 바
+    -- ==========================================
+    local gaugeX = 14               -- 패들 바로 왼쪽
+    local gaugeY = 180
+    local gaugeWidth = 6
+    local gaugeHeight = 120
+
+    -- 충전 비율 (0.0: 쿨타임 중 ~ 1.0: 준비 완료)
+    local readyRatio = 1 - (paddle1.cooldownTimer / paddle1.dashCooldown)
+
+    -- 1. 게이지 배경 (비어있는 틀)
+    love.graphics.setColor(0.2, 0.25, 0.35, 0.5)
+    love.graphics.rectangle('fill', gaugeX, gaugeY, gaugeWidth, gaugeHeight, 3, 3)
+
+    -- 2. 채워지는 게이지 바 색상 지정
+    if readyRatio >= 1.0 then
+        if paddle1.isDashing then
+            love.graphics.setColor(1.0, 1.0, 1.0, 1.0) -- 대시 중: 흰색 플래시
+        else
+            love.graphics.setColor(1.0, 0.55, 0.0, 1.0) -- 충전 완료: 선명한 네온 오렌지
+        end
+    else
+        love.graphics.setColor(0.5, 0.55, 0.65, 0.6)   -- 충전 중: 차분한 회색빛 (또는 은은한 톤)
+    end
+
+    -- 아래에서 위로 차오르는 방식
+    local fillHeight = gaugeHeight * readyRatio
+    love.graphics.rectangle('fill', gaugeX, gaugeY + (gaugeHeight - fillHeight), gaugeWidth, fillHeight, 3, 3)
+
+    -- 3. 패들이 대시 중일 때 살짝 잔상/발광 테두리 표현
+    if paddle1.isDashing then
+        love.graphics.setColor(1, 1, 1, 0.3)
+        love.graphics.rectangle('fill', paddle1.x - 2, paddle1.y - 2, paddle1.width + 4, paddle1.height + 4, 6, 6)
+    end
+
+    -- 색상 리셋
     love.graphics.setColor(1, 1, 1, 1)
 end
