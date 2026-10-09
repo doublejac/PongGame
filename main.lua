@@ -163,8 +163,8 @@ function love.update(dt)
         paddle1.dashTimer = paddle1.dashDuration
         paddle1.cooldownTimer = paddle1.dashCooldown
         
-        -- 대시 사운드가 있다면 재생 (기존 Audio 모듈 활용 시)
-        -- Audio.play('hit', { pitch = 1.6 })
+        -- 대시 발동 효과음 재생 (overlap = true로 설정해 반응성 보장)
+        Audio.play('dash', { overlap = true, pitch = 1.0 })
     end
 
     -- 현재 적용할 이동 속도 계산
