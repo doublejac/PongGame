@@ -47,9 +47,9 @@ function love.update(dt)
     end
 
     -- 2. 플레이어(P1) 조작 (W / S)
-    if love.keyboard.isDown('w') then
+    if love.keyboard.isDown('w') or love.keyboard.isDown('up') then
         paddle1.y = math.max(0, paddle1.y - paddle1.speed * dt)
-    elseif love.keyboard.isDown('s') then
+    elseif love.keyboard.isDown('s') or love.keyboard.isDown('down') then
         paddle1.y = math.min(WINDOW_HEIGHT - paddle1.height, paddle1.y + paddle1.speed * dt)
     end
 
