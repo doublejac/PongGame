@@ -158,7 +158,7 @@ function love.draw()
         love.graphics.printf("PONG GAME", 0, WINDOW_HEIGHT / 2 - 60, WINDOW_WIDTH, "center")
         love.graphics.setFont(fontNormal)
         love.graphics.printf("Press SPACE to Start", 0, WINDOW_HEIGHT / 2, WINDOW_WIDTH, "center")
-        love.graphics.printf("Controls: W / S", 0, WINDOW_HEIGHT / 2 + 30, WINDOW_WIDTH, "center")
+        love.graphics.printf("Controls: W / S or UP / DOWN", 0, WINDOW_HEIGHT / 2 + 30, WINDOW_WIDTH, "center")
 
     elseif gameState == 'done' then
         love.graphics.setFont(fontLarge)
