@@ -350,9 +350,9 @@ function love.draw()
     love.graphics.setFont(fontNormal)
     love.graphics.setColor(colors.textSub)
     if Audio.isMuted then
-        love.graphics.printf("[BGM Muted] Press M", 0, 15, WINDOW_WIDTH - 20, "right")
+        love.graphics.printf("[Sound Muted] Press M", 0, 15, WINDOW_WIDTH - 20, "right")
     else
-        love.graphics.printf("[BGM ON] Press M", 0, 15, WINDOW_WIDTH - 20, "right")
+        love.graphics.printf("[Sound ON] Press M", 0, 15, WINDOW_WIDTH - 20, "right")
     end
 
     -- ==========================================
