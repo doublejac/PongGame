@@ -123,13 +123,46 @@ function love.update(dt)
         ball.dy = -ball.dy
     end
 
-    -- 패들 충돌 판정 (AABB 충돌)
+    -- ==========================================
+    -- 패들 충돌 및 상대 타점 기반 반사 물리
+    -- ==========================================
+    local maxDy = 350 -- 모서리에 맞았을 때 꺾이는 최대 수직 속도
+
+    -- 1. 플레이어 패들(paddle1) 충돌
     if checkCollision(ball, paddle1) then
         ball.x = paddle1.x + paddle1.width
-        ball.dx = -ball.dx * 1.05 -- 속도 가속
-    elseif checkCollision(ball, paddle2) then
-        ball.x = paddle2.x - ball.width
+        
+        -- 수평 속도 반전 및 가속 (5%)
         ball.dx = -ball.dx * 1.05
+
+        -- 충돌 지점 정규화 (-1.0 ~ 1.0)
+        local ballCenterY = ball.y + ball.height / 2
+        local paddle1CenterY = paddle1.y + paddle1.height / 2
+        local hitFactor = (ballCenterY - paddle1CenterY) / (paddle1.height / 2)
+
+        -- 패들 범위를 살짝 넘겨 닿은 경우를 대비해 -1 ~ 1 범위로 제한
+        hitFactor = math.max(-1, math.min(1, hitFactor))
+
+        -- hitFactor에 따라 dy 재계산
+        ball.dy = hitFactor * maxDy
+    end
+
+    -- 2. AI 패들(paddle2) 충돌
+    if checkCollision(ball, paddle2) then
+        ball.x = paddle2.x - ball.width
+        
+        -- 수평 속도 반전 및 가속 (5%)
+        ball.dx = -ball.dx * 1.05
+
+        -- 충돌 지점 정규화 (-1.0 ~ 1.0)
+        local ballCenterY = ball.y + ball.height / 2
+        local paddle2CenterY = paddle2.y + paddle2.height / 2
+        local hitFactor = (ballCenterY - paddle2CenterY) / (paddle2.height / 2)
+
+        hitFactor = math.max(-1, math.min(1, hitFactor))
+
+        -- hitFactor에 따라 dy 재계산
+        ball.dy = hitFactor * maxDy
     end
 
     -- 5. 득점 판정 및 승리 조건 체크
