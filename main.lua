@@ -24,7 +24,17 @@ function love.load()
     -- 패들 (P1: 좌측, P2/AI: 우측)
     paddle1 = { x = 30, y = 250, width = 15, height = 80, speed = 400 }
     paddle2 = { x = WINDOW_WIDTH - 45, y = 250, width = 15, height = 80, speed = 350 }
-
+    
+    -- AI 반응 지연 관련 변수
+    aiReactionDelay = 0.15  -- 중앙선 통과 후 반응하기까지 걸리는 시간 (초 단위, 0.1 ~ 0.25 추천)
+    aiTimer = 0             -- 지연 시간 카운팅 타이머
+    aiCanReact = false      -- 현재 AI가 공에 반응할 수 있는 상태인지 여부
+    
+    -- AI 타점 오차(Offset) 변수
+    -- 패들 절반 높이(paddle2.height / 2 = 40)를 고려하여 ±25픽셀 내외 오차 설정
+    aiMaxOffset = 25
+    aiTargetOffset = 0
+    
     -- 공 초기화 함수 호출
     resetBall()
 end
@@ -38,6 +48,11 @@ function resetBall()
         dx = (math.random(2) == 1 and 1 or -1) * 300,
         dy = math.random(-150, 150)
     }
+
+    -- 라운드 리셋 시 AI 반응 상태 초기화
+    aiTimer = 0
+    aiCanReact = false
+    aiTargetOffset = 0
 end
 
 function love.update(dt)
@@ -53,11 +68,46 @@ function love.update(dt)
         paddle1.y = math.min(WINDOW_HEIGHT - paddle1.height, paddle1.y + paddle1.speed * dt)
     end
 
-    -- 3. 간단한 AI 패들(P2) 추적
-    if ball.y < paddle2.y + paddle2.height / 2 then
-        paddle2.y = math.max(0, paddle2.y - paddle2.speed * dt)
-    elseif ball.y > paddle2.y + paddle2.height / 2 then
-        paddle2.y = math.min(WINDOW_HEIGHT - paddle2.height, paddle2.y + paddle2.speed * dt)
+    -- ==========================================
+    -- 3. AI 패들(P2) 지연 반응 및 타점 오차 로직
+    -- ==========================================
+    local deadzone = 10
+    local ballCenterY = ball.y + ball.height / 2
+    
+    -- AI가 노리는 패들의 실제 타점 높이 (정중앙 + 랜덤 오차)
+    local targetPaddleY = (paddle2.y + paddle2.height / 2) + aiTargetOffset
+
+    -- 공이 AI 진영(중앙선 오른쪽)으로 넘어오고 있는 경우
+    if ball.dx > 0 and ball.x > (WINDOW_WIDTH / 2) then
+        if not aiCanReact then
+            aiTimer = aiTimer + dt
+            if aiTimer >= aiReactionDelay then
+                aiCanReact = true
+                -- 반응 시작 시 이번 랠리에서 노릴 타점 오프셋을 결정
+                generateAIOffset()
+            end
+        end
+    else
+        aiTimer = 0
+        aiCanReact = false
+    end
+
+    -- 추적 로직 (targetPaddleY를 기준으로 판단)
+    if aiCanReact then
+        if ballCenterY < targetPaddleY - deadzone then
+            paddle2.y = math.max(0, paddle2.y - paddle2.speed * dt)
+        elseif ballCenterY > targetPaddleY + deadzone then
+            paddle2.y = math.min(WINDOW_HEIGHT - paddle2.height, paddle2.y + paddle2.speed * dt)
+        end
+    else
+        -- 대기 상태: 천천히 화면 중앙 복귀 (복귀 시에는 오프셋 미적용)
+        local paddleCenterY = paddle2.y + paddle2.height / 2
+        local screenCenterY = WINDOW_HEIGHT / 2
+        if paddleCenterY < screenCenterY - deadzone then
+            paddle2.y = paddle2.y + (paddle2.speed * 0.3) * dt
+        elseif paddleCenterY > screenCenterY + deadzone then
+            paddle2.y = paddle2.y - (paddle2.speed * 0.3) * dt
+        end
     end
 
     -- 4. 공 이동
@@ -110,6 +160,12 @@ function checkCollision(a, b)
            a.x + a.width > b.x and
            a.y < b.y + b.height and
            a.y + a.height > b.y
+end
+
+-- AI 타점 오프셋을 새로 결정하는 함수
+function generateAIOffset()
+    -- -aiMaxOffset ~ +aiMaxOffset 범위의 난수 생성
+    aiTargetOffset = math.random(-aiMaxOffset, aiMaxOffset)
 end
 
 function love.keypressed(key)
