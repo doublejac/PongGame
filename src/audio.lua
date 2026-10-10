@@ -18,7 +18,7 @@ function Audio.init()
     Audio.sounds['miss'] = love.audio.newSource('assets/sounds/sfx/miss.wav', 'static')
     Audio.sounds['win']  = love.audio.newSource('assets/sounds/ui/win.wav', 'static')
     Audio.sounds['lose'] = love.audio.newSource('assets/sounds/ui/lose.wav', 'static')
-    Audio.sounds['dash'] = love.audio.newSource('assets/sounds/sfx/dash.ogg', 'static')
+    Audio.sounds['dash'] = love.audio.newSource('assets/sounds/sfx/dash.wav', 'static')
 
     Audio.sounds['hit']:setVolume(Audio.volume.sfx)
     Audio.sounds['miss']:setVolume(Audio.volume.sfx)
@@ -28,7 +28,7 @@ function Audio.init()
     
     -- BGM 로드 (stream 디스크 스트리밍)
     -- 확장자가 mp3라면 'assets/sounds/bgm/bgm.mp3'로 변경
-    local bgmPath = 'assets/sounds/bgm/bgm.ogg'
+    local bgmPath = 'assets/sounds/bgm/bgm.mp3'
     if love.filesystem.getInfo(bgmPath) then
         Audio.music['main'] = love.audio.newSource(bgmPath, 'stream')
     elseif love.filesystem.getInfo('assets/sounds/bgm/bgm.mp3') then
