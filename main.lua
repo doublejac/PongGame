@@ -355,6 +355,9 @@ function love.draw()
         love.graphics.printf("[Sound ON] Press M", 0, 15, WINDOW_WIDTH - 20, "right")
     end
 
+    -- 대쉬 안내 문구
+    love.graphics.printf("[SHIFT KEY] DASH", 0, WINDOW_HEIGHT - 30, WINDOW_WIDTH - 20, "right")
+    
     -- ==========================================
     -- 플레이어 대시 쿨타임 게이지 바
     -- ==========================================
